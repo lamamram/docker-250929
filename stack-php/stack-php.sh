@@ -28,15 +28,17 @@ docker network create \
 # --env MARIADB_DATABASE=test \
 # --env MARIADB_ROOT_PASSWORD=roottoor \
 
-# --env VAR=valeur : définit une variable d'environnement dans le conteneur
-# --env-file .env : définit plusieurs variables d'environnement dans le conteneur à partir d'un fichier
+## --env VAR=valeur : définit une variable d'environnement dans le conteneur
+## --env-file .env : définit plusieurs variables d'environnement dans le conteneur à partir d'un fichier
 # cf .env
+## -v <name>:/path: volume nommé: permet la persistance des données gérée par docker
 docker run \
        --name stack-php-mariadb \
        -d --restart unless-stopped \
        --net stack-php \
        --env-file .env \
        -v ./mariadb-init.sql:/docker-entrypoint-initdb.d/mariadb-init.sql \
+       -v db_data:/var/lib/mysql \
        mariadb:11.4
 
 # docker exec stack-php-mariadb bash -c 'mysql -u test -proottoor test < ./init.sql'
@@ -47,6 +49,7 @@ docker run \
        -v ./index.php:/srv/index.php \
        -v ./pdo_mysql.so:/usr/local/lib/php/extensions/no-debug-non-zts-20230831/pdo_mysql.so \
        -v ./pdo.ini:/usr/local/etc/php/conf.d/pdo.ini \
+       --env-file .env \
        --net stack-php \
        php:8.3.26-fpm-trixie
      
