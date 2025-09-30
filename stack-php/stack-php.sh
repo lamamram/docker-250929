@@ -4,10 +4,11 @@
 # docker ps
 # -q: affiche uniquement le hash
 # --filter name=stack-php: filtre par la colonne name
-[[ -z $(docker ps -q --filter name=stack-php) ]] || docker rm -f $(docker ps -q --filter name=stack-php)
+[[ -z $(docker ps -aq --filter name=stack-php) ]] || docker rm -f $(docker ps -aq --filter name=stack-php)
 
-if [[ -n $(docker network ls -q --filter name=stack-php) ]]; then
-    docker network rm stack-php
+docker network ls | grep stack-php > /dev/null
+if [[ "$?" -eq 0 ]]; then
+  docker network rm stack-php
 fi
 
 ######## RESEAU ########
@@ -21,6 +22,16 @@ docker network create \
        stack-php
 
 ######## CONTAINERS ########
+
+docker run \
+       --name stack-php-mariadb \
+       -d --restart unless-stopped \
+       --net stack-php \
+       --env MARIADB_USER=test \
+       --env MARIADB_PASSWORD=roottoor \
+       --env MARIADB_DATABASE=test \
+       --env MARIADB_ROOT_PASSWORD=roottoor \
+       mariadb:11.4
 
 docker run \
        --name stack-php-fpm \
