@@ -8,20 +8,28 @@
 
 ######## CONTAINERS ########
 
+docker run \
+       --name stack-php-fpm \
+       -d --restart unless-stopped \
+       -v ./index.php:/srv/index.php \
+       php:8.3.26-fpm-trixie
+     
+# docker cp ./index.php stack-php-fpm:/srv
+
 # --name: nom du contneur
 # -d: rend le processus lancé indépendant du terminal
 # --restart unless-stopped: redémarre le conteneur sauf s'il a été arrêté manuellement
 # -p 8080:80 : publish: redirige le port 8080 de toutes les interfaces de la machine hôte 
 #                       vers le port 80 du conteneur (par défaut de l'interface docker0)
+# -v ./...:/... : bind mount: monte le CHEMIN local du fichier dans le CHEMIN du même ficher du conteneur
 docker run \
        --name stack-php-nginx \
        -d --restart unless-stopped \
        -p 8080:80 \
+       -v ./vhost.conf:/etc/nginx/conf.d/vhost.conf \
        nginx:1.29-bookworm-perl
 
-
-docker run \
-       --name stack-php-fpm \
-       -d --restart unless-stopped \
-       php:8.3.26-fpm-trixie
-       
+## plus besoin de çà
+# docker cp ./vhost.conf stack-php-nginx:/etc/nginx/conf.d
+# recharge la conf nginx
+# docker restart stack-php-nginx
