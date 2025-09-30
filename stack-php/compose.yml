@@ -1,0 +1,47 @@
+networks:
+  stack-php:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1
+
+volumes:
+  db_data:
+
+services:
+  stack-php-mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    networks:
+      - stack-php
+    env_file:
+      - .env
+    volumes:
+      - ./mariadb-init.sql:/docker-entrypoint-initdb.d/mariadb-init.sql
+      - db_data:/var/lib/mysql
+    
+  stack-php-fpm:
+    image: php:8.3.26-fpm-trixie
+    restart: unless-stopped
+    networks:
+      - stack-php
+    env_file:
+      - .env
+    volumes:
+      - ./index.php:/srv/index.php
+      - ./pdo_mysql.so:/usr/local/lib/php/extensions/no-debug-non-zts-20230831/pdo_mysql.so
+      - ./pdo.ini:/usr/local/etc/php/conf.d/pdo.ini
+  
+  stack-php-nginx:
+    image: nginx:1.29-bookworm-perl
+    restart: unless-stopped
+    networks:
+      - stack-php
+    ports:
+      - 8080:80
+    volumes:
+      - ./vhost.conf:/etc/nginx/conf.d/vhost.conf
+
+
+  
