@@ -1,5 +1,6 @@
 networks:
   stack-php:
+    name: stack-php
     driver: bridge
     ipam:
       config:
@@ -8,9 +9,13 @@ networks:
 
 volumes:
   db_data:
+   name: db_data
 
+## service = définition d'un conteneur qui sera répiqué dans l'infra
 services:
-  stack-php-mariadb:
+  # nom du service
+  db:
+    container_name: stack-php-mariadb
     image: mariadb:11.4
     restart: unless-stopped
     networks:
@@ -18,10 +23,14 @@ services:
     env_file:
       - .env
     volumes:
-      - ./mariadb-init.sql:/docker-entrypoint-initdb.d/mariadb-init.sql
+      # :ro => le fichier monté est en lecture seule dans le conteneur
+      - ./mariadb-init.sql:/docker-entrypoint-initdb.d/mariadb-init.sql:ro
       - db_data:/var/lib/mysql
+    profiles:
+      - run
     
-  stack-php-fpm:
+  fpm:
+    container_name: stack-php-fpm
     image: php:8.3.26-fpm-trixie
     restart: unless-stopped
     networks:
@@ -29,11 +38,17 @@ services:
     env_file:
       - .env
     volumes:
-      - ./index.php:/srv/index.php
+      - ./index.php:/srv/index.php:ro
       - ./pdo_mysql.so:/usr/local/lib/php/extensions/no-debug-non-zts-20230831/pdo_mysql.so
       - ./pdo.ini:/usr/local/etc/php/conf.d/pdo.ini
+    # le service maradb doit être démarré avant le service fpm
+    depends_on:
+      - db
+    profiles:
+      - run
   
-  stack-php-nginx:
+  web:
+    container_name: stack-php-nginx
     image: nginx:1.29-bookworm-perl
     restart: unless-stopped
     networks:
@@ -41,7 +56,30 @@ services:
     ports:
       - 8080:80
     volumes:
-      - ./vhost.conf:/etc/nginx/conf.d/vhost.conf
+      - ./vhost.conf:/etc/nginx/conf.d/vhost.conf:ro
+    depends_on:
+      - fpm
+    # lancé avec docker compose --profile run up -d
+    profiles:
+      - run
 
+####### tâches admisnistratives #######
 
+## backup à froid => sans conteneur de base de données
+  ## pour lancer la tâche: docker compose run --rm backup
+  backup:
+    image: alpine:3.22.1
+    # pas besoin de réseau ici
+    network_mode: none
+    volumes:
+      # utilisation du volume db_data préexistant
+      # /data est créé automatiquement
+      - db_data:/data:ro
+      # les deux /dump sont créés automatiquement
+      - ./dump:/dump
+    # remplace la commande par défaut de l'image alpine
+    command: tar -cvzf /dump/backup.tar.gz /data
+    profiles:
+      - task
+    
   
