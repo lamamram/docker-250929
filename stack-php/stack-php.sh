@@ -12,6 +12,8 @@ fi
 
 ######## RESEAU ########
 
+# réseau bridge custom: nous donne une résolution dns interne avec le nom du conteneur
+# cf vhost.conf
 docker network create \
        --driver bridge \
        --subnet 172.19.0.0/16 \
