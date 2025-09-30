@@ -2,16 +2,17 @@
 ######## IMDEMPOTENCY ########
 
 # docker ps
-# -q: only display hash
-# --filter name=stack-php: filter by name
+# -q: affiche uniquement le hash
+# --filter name=stack-php: filtre par la colonne name
 [[ -z $(docker ps -q --filter name=stack-php) ]] || docker rm -f $(docker ps -q --filter name=stack-php)
 
 ######## CONTAINERS ########
 
-# --name: container name
-# -d: detached mode
-# --restart unless-stopped: restart policy
-# -p 8080:80 : publish port 80 of container to port 8080 of every interfaces of host
+# --name: nom du contneur
+# -d: rend le processus lancé indépendant du terminal
+# --restart unless-stopped: redémarre le conteneur sauf s'il a été arrêté manuellement
+# -p 8080:80 : publish: redirige le port 8080 de toutes les interfaces de la machine hôte 
+#                       vers le port 80 du conteneur (par défaut de l'interface docker0)
 docker run \
        --name stack-php-nginx \
        -d --restart unless-stopped \
