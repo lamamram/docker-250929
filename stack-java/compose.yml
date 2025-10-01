@@ -1,0 +1,36 @@
+# 1. docker compose up essaie de trouver les images dans le docker hub (pulic)
+# 2. sinon si les images sont en local on les utilise SAUF si on demande explicitement un --build si la section build
+# 3. sinon on peut builder les images avec la section build:
+
+networks:
+  stack-java:
+    name: stack-java
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+services:
+  httpd:
+    container_name: stack-java-httpd
+    image: stack-java-httpd:2.4
+    build:
+      context: ./httpd
+      # dockerfile: Dockerfile
+    networks:
+      - stack-java
+    ports:
+      - 8080:80
+    depends_on:
+      - tomcat
+  
+  tomcat:
+    container_name: stack-java-tomcat
+    image: stack-java-tomcat:9
+    build:
+      context: ./tomcat
+      args:
+        - TOMCAT_VERSION_FULL=${TOMCAT_VERSION_FULL:-9.0.109}
+    networks:
+      - stack-java
