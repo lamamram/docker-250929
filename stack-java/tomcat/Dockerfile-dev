@@ -7,16 +7,30 @@ LABEL created="2025-10-01"
 LABEL app="stack-java"
 LABEL stack.tiers="tomcat"
 
-## BEST PRACTICE 1. gradient de fréquence de changement des couches
-## BEST PRACTICE 2. enchainer les commandes pour créer / modifier / supprimer des fichiers/dossiers dans les mêmes couches
-## BEST PRACTICE 2bis. travailler en flux et non en fichier par défaut ( curl | tar )
-## BEST PRACTICE 3. enchainer les RUN autant que possible
-RUN apt-get update -q && apt-get install -y -q openjdk-17-jre-headless curl && \
-    rm -rf /var/lib/apt/cache/lists/* && \
-    mkdir /opt/tomcat && \
-    curl https://downloads.apache.org/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-9.0.109.tar.gz | \
-    tar -xzv -C /opt/tomcat --strip-components=1 && \
-    useradd -M -d /opt/tomcat -U tomcat
+## ajouter un dossier /opt/tomcat
+RUN mkdir /opt/tomcat
+
+## injecter le fichier https://downloads.apache.org/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-9.0.109.tar.gz dans ce dossier
+## ADD: COPY + gestion des protocoles (http, https, ftp)
+ADD https://downloads.apache.org/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-9.0.109.tar.gz /opt/tomcat
+
+## décomprésser dans ce dossier sans dossier intermédiaire 
+# RUN curl https://downloads.apache.org/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-9.0.109.tar.gz -o /opt/tomcat/apache-tomcat-9.0.109.tar.gz
+RUN tar -xzvf /opt/tomcat/apache-tomcat-9.0.109.tar.gz -C /opt/tomcat --strip-components=1
+
+# nettoyer
+# WARNING: supprimer l'archive dans une couche intermédiaire ne réduit pas la taille finale de l'image
+# à cause du mécanisme Copy on Write de Linux
+RUN rm -f /opt/tomcat/apache-tomcat-9.0.109.tar.gz
+
+## installer java
+RUN apt-get update -q && apt-get install -y -q openjdk-17-jre-headless
+# et nettoyer le dépôt
+RUN rm -rf /var/lib/apt/cache/lists/*
+
+
+## ajouter un utilisateur tomcat avec le dossier /opt/tomcat comme home et un group tomcat
+RUN useradd -M -d /opt/tomcat -U tomcat
 
 ## changer le home de l'image vers /opt/tomcat/webapps
 WORKDIR /opt/tomcat/webapps
