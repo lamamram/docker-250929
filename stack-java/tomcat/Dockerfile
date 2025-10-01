@@ -1,0 +1,54 @@
+## nous allons utiliser une image debian:12-slim
+FROM debian:12-slim
+
+## documenter l'image
+LABEL author="matt"
+LABEL created="2025-10-01"
+LABEL app="stack-java"
+LABEL stack.tiers="tomcat"
+
+## ajouter un dossier /opt/tomcat
+RUN mkdir /opt/tomcat
+
+## injecter le fichier https://downloads.apache.org/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-9.0.109.tar.gz dans ce dossier
+ADD https://downloads.apache.org/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-9.0.109.tar.gz /opt/tomcat
+
+## décomprésser dans ce dossier sans dossier intermédiaire 
+# RUN curl https://downloads.apache.org/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-9.0.109.tar.gz -o /opt/tomcat/apache-tomcat-9.0.109.tar.gz
+RUN tar -xzvf /opt/tomcat/apache-tomcat-9.0.109.tar.gz -C /opt/tomcat --strip-components=1
+
+RUN rm -f /opt/tomcat/apache-tomcat-9.0.109.tar.gz
+
+## installer java
+RUN apt-get update -q && apt-get install -y -q openjdk-17-jre-headless
+# et nettoyer le dépôt
+RUN rm -rf /var/lib/apt/cache/lists/*
+
+## ajouter un utilisateur tomcat avec le dossier /opt/tomcat comme home et un group tomcat
+RUN useradd -M -d /opt/tomcat -U tomcat
+
+## changer le home de l'image vers /opt/tomcat/webapps
+WORKDIR /opt/tomcat/webapps
+
+## télécharger l'application sample https://tomcat.apache.org/tomcat-10.1-doc/appdev/sample/sample.war dans le dossier home 
+ADD https://tomcat.apache.org/tomcat-10.1-doc/appdev/sample/sample.war .
+
+## spécifier le propriétaire et groupe à tomcat 
+RUN chown -R tomcat:tomcat /opt/tomcat
+
+## changer l'utilisateur à tomcat
+USER tomcat
+
+## persister le dossier home pour accéder ou sauvegarder les apps
+## ce volume géré par docker comme un volume nommé MAIS sans nom !!
+## n'est utilisable qu'avec --volumes-from
+VOLUME [ "/opt/tomcat/webapps" ]
+
+## pour communiquer avec httpd avec le port 8080
+EXPOSE 8080
+
+## exécuter de manière statique (sans substitution) le binaire en foreground catalina.sh vs startup.sh ???
+# ENTRYPOINT [ "/opt/tomcat/bin/catalina.sh" ]
+
+## ajouter la sous commande pour lancer en one shot run ou start ???
+CMD ["/opt/tomcat/bin/catalina.sh", "run" ]
