@@ -7,6 +7,9 @@ LABEL created="2025-10-01"
 LABEL app="stack-java"
 LABEL stack.tiers="tomcat"
 
+ARG TOMCAT_VERSION_MAJOR=9
+ARG TOMCAT_VERSION_FULL
+
 ## BEST PRACTICE 1. gradient de fréquence de changement des couches
 ## BEST PRACTICE 2. enchainer les commandes pour créer / modifier / supprimer des fichiers/dossiers dans les mêmes couches
 ## BEST PRACTICE 2bis. travailler en flux et non en fichier par défaut ( curl | tar )
@@ -14,32 +17,37 @@ LABEL stack.tiers="tomcat"
 RUN apt-get update -q && apt-get install -y -q openjdk-17-jre-headless curl && \
     rm -rf /var/lib/apt/cache/lists/* && \
     mkdir /opt/tomcat && \
-    curl https://downloads.apache.org/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-9.0.109.tar.gz | \
+    curl https://downloads.apache.org/tomcat/tomcat-${TOMCAT_VERSION_MAJOR}/v${TOMCAT_VERSION_FULL}/bin/apache-tomcat-${TOMCAT_VERSION_FULL}.tar.gz | \
     tar -xzv -C /opt/tomcat --strip-components=1 && \
     useradd -M -d /opt/tomcat -U tomcat
 
-## changer le home de l'image vers /opt/tomcat/webapps
 WORKDIR /opt/tomcat/webapps
 
-## télécharger l'application sample https://tomcat.apache.org/tomcat-10.1-doc/appdev/sample/sample.war dans le dossier home 
 ADD https://tomcat.apache.org/tomcat-10.1-doc/appdev/sample/sample.war .
 
-## spécifier le propriétaire et groupe à tomcat 
 RUN chown -R tomcat:tomcat /opt/tomcat
 
-## changer l'utilisateur à tomcat
 USER tomcat
 
-## persister le dossier home pour accéder ou sauvegarder les apps
-## ce volume géré par docker comme un volume nommé MAIS sans nom !!
-## n'est utilisable qu'avec --volumes-from
 VOLUME [ "/opt/tomcat/webapps" ]
 
-## pour communiquer avec httpd avec le port 8080
 EXPOSE 8080
 
-## exécuter de manière statique (sans substitution) le binaire en foreground catalina.sh vs startup.sh ???
-# ENTRYPOINT [ "/opt/tomcat/bin/catalina.sh" ]
-
-## ajouter la sous commande pour lancer en one shot run ou start ???
 CMD ["/opt/tomcat/bin/catalina.sh", "run" ]
+
+# quand le docker run est lancé
+# le CMD ci dessus est lancé
+# 1. on attent <start-period>
+# 2. le CMD du HEALTHCHECK est lancé
+# 3.1. le // termine avant le <timeout> avec le code 0 => SUCESS => (healthy) dans le STATUS du docker ps
+# 3.2. le // termine avant le <timeout> avec un code non-zero => ERROR (unhealthy)
+# 3.3. le // ne termine pas avant le <timeout>
+# si 3.2 ou 3.3 => on reessaye <retries> fois
+# si 3.2 ou 3.3 => avant de réessayer on attend <interval>s
+## REM: le CMD doit être écrit sans JSON
+HEALTHCHECK \
+            --start-period=3s \
+            --timeout=5s \
+            --retries=3 \
+            --interval=3s \
+            CMD grep "Server startup" /opt/tomcat/logs/catalina.*.log
