@@ -14,7 +14,7 @@ networks:
 services:
   httpd:
     container_name: stack-java-httpd
-    image: stack-java-httpd:2.4
+    image: 127.0.0.1:443/stack-java-httpd:2.4
     build:
       context: ./httpd
       # dockerfile: Dockerfile
@@ -24,13 +24,25 @@ services:
       - 8080:80
     depends_on:
       - tomcat
+    develop:
+      watch:
+        # pour le code ou build: transfert d'un fichier/build modifié dans le conteneur + docker restart
+        # - action: sync+restart
+        #   # sur le host
+        #   path: ./httpd/java_app.conf
+        #   # dans le conteneur
+        #   target: /usr/local/apache2/conf/sites/java_app.conf
+        # changer le Dockerfile => il faut la section build
+        - action: rebuild
+          path: ./httpd/java_app.conf
+          target: /usr/local/apache2/conf/sites/java_app.conf
   
   tomcat:
     container_name: stack-java-tomcat
-    image: stack-java-tomcat:9
-    build:
-      context: ./tomcat
-      args:
-        - TOMCAT_VERSION_FULL=${TOMCAT_VERSION_FULL:-9.0.109}
+    image: 127.0.0.1:443/stack-java-tomcat:9
+    # build:
+    #   context: ./tomcat
+    #   args:
+    #     - TOMCAT_VERSION_FULL=${TOMCAT_VERSION_FULL:-9.0.109}
     networks:
       - stack-java

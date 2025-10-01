@@ -10,6 +10,16 @@ networks:
 volumes:
   db_data:
    name: db_data
+  ## création de 3 volumes nfs pour servir des fichiers conf
+  nfs-vol-db:
+    name: nfs-vol-db
+    # les éléments du serveur NFS sont téléchargés dans l'emplacement local (/var/lib/docker/volumes/...)
+    driver: local
+    driver_opts:
+      type: nfs
+      # langage nfs: o et device commposent une url
+      o: addr=127.0.0.1,ro
+      device: :/mnt/nfs-dir/initdb.d
 
 ## service = définition d'un conteneur qui sera répiqué dans l'infra
 services:
@@ -24,10 +34,11 @@ services:
       - .env
     volumes:
       # :ro => le fichier monté est en lecture seule dans le conteneur
-      - ./mariadb-init.sql:/docker-entrypoint-initdb.d/mariadb-init.sql:ro
+      # - ./mariadb-init.sql:/docker-entrypoint-initdb.d/mariadb-init.sql:ro
+      - nfs-vol-db:/docker-entrypoint-initdb.d:ro
       - db_data:/var/lib/mysql
     profiles:
-      - run
+      - build
     
   fpm:
     container_name: stack-php-fpm
@@ -45,7 +56,7 @@ services:
     depends_on:
       - db
     profiles:
-      - run
+      - build
   
   web:
     container_name: stack-php-nginx
@@ -59,9 +70,9 @@ services:
       - ./vhost.conf:/etc/nginx/conf.d/vhost.conf:ro
     depends_on:
       - fpm
-    # lancé avec docker compose --profile run up -d
+    # lancé avec docker compose --profile build up -d
     profiles:
-      - run
+      - build
 
 ####### tâches admisnistratives #######
 
