@@ -1,0 +1,120 @@
+image: docker:${DOCKER_VERSION}-cli
+
+variables:
+  DOCKER_VERSION: 28
+
+stages:
+  - loading
+  - building
+  - scaning
+  - tagging
+  - staging
+
+.before_script: &login >
+  echo "$CI_REGISTRY_PASSWORD" | 
+  docker login $CI_REGISTRY 
+  -u $CI_REGISTRY_USER 
+  --password-stdin
+
+load:
+  stage: loading
+  image: curlimages/curl:latest
+  tags: [formation]
+  script:
+    - >
+      curl 
+      -k 
+      --location 
+      --header "JOB-TOKEN: $CI_JOB_TOKEN"
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/java_sb/staging-rc/java-sb.tar.gz"
+      | tar xzv -C java-sb_img
+  artifacts:
+    expire_in: "5 minutes"
+    paths:
+      - java-sb_img/target/java-sb.war.original
+      - java-sb_img/tag.txt
+
+build:
+  stage: building
+  tags: [formation]
+  before_script:
+    - *login
+  script:
+    - cd java-sb_img
+    - docker build -t $CI_REGISTRY_IMAGE/java-sb:staging-rc .
+    - docker run -d --restart unless-stopped --name test $CI_REGISTRY_IMAGE/java-sb:staging-rc
+    - sleep 60
+    - docker ps --filter name=test | grep -o "(healthy)"
+    - tag=$(cat tag.txt)
+    - docker tag $CI_REGISTRY_IMAGE/java-sb:staging-rc $CI_REGISTRY_IMAGE/java-sb:$tag
+    - docker push $CI_REGISTRY_IMAGE/java-sb:$tag
+  after_script:
+    - docker ps --filter name=test && docker rm -f test
+  artifacts:
+    access: developer
+    expire_in: "5 minutes"
+    paths:
+      - java-sb_img/tag.txt
+
+scan:
+  stage: scaning
+  variables:
+    # GIT STRATEGY: je ne pas besoin du dépôt git
+    GIT_STRATEGY: none
+    TRIVY_USERNAME: "$CI_REGISTRY_USER"
+    TRIVY_PASSWORD: "$CI_JOB_TOKEN"
+    TRIVY_AUTH_URL: "$CI_REGISTRY"
+    TRIVY_INSECURE: "true"
+    # exit code 1 si vulnérabilités de niveau HIGH ou CRITICAL
+    TRIVY_OPTS: >
+                --exit-code 1
+                --severity CRITICAL
+                --scanners vuln
+                --cache-dir .trivycache/
+  image:
+    name: aquasec/trivy
+    entrypoint: [""]
+  tags: [formation]
+  before_script: [""]
+  script:
+    - tag=$(cat java-sb_img/tag.txt)
+    - >
+      trivy image 
+      $TRIVY_OPTS
+      "$CI_REGISTRY_IMAGE/java-sb:$tag"
+      --format template 
+      --template "@/contrib/junit.tpl" 
+      -o junit-report.xml
+      --parallel 2
+  artifacts:
+    expire_in: "1 hour"
+    reports:
+      junit: junit-report.xml
+  cache:
+    key: trivy
+    paths:
+      - .trivycache/
+    policy: pull-push
+  dependencies: [build]
+
+staging:
+  stage: staging
+  tags:
+    - formation
+  image: alpinelinux/ansible:latest
+  before_script:
+    - mkdir ~/.ssh
+    # oneline encoded pkey: $(cat ~/.ssh/ansible | base64 -w0)
+    - echo "$ANSIBLE_PKEY" | base64 -d > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh && chmod 600 ~/.ssh/id_rsa
+    - mv ansible/ansible.cfg ~/.ansible.cfg
+    - mv ansible/inventory ~/inventory
+  script:
+    - cd ansible
+    - >
+      ansible-playbook 
+      -e "ansible_become_pass=$ANSIBLE_PASS"
+      -e "tag=$(cat ../java-sb_img/tag.txt)"
+      -e "reg=$ANSIBLE_PASS"
+      deploy_java-sb.yml
+  dependencies: [build]
